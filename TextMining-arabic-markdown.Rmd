@@ -1,0 +1,289 @@
+---
+title: "Text-Mining"
+author: "ELIO"
+date: "2023-02-06"
+output:
+  html_document: default
+  word_document: default
+---
+
+To work on Rstudio text-mining we should respect the choosen laguage
+Each language has it owns packages , libraries and methods 
+Here we will see how to deal with Arabic text:
+```{r}
+############# STEP (1) #############
+## The following should work on Windows - first grab and save your existing locale
+print(Sys.getlocale(category = "LC_CTYPE"))
+original_ctype <- Sys.getlocale(category = "LC_CTYPE")
+## Switch to the appropriate local for the script
+Sys.setlocale("LC_CTYPE","arabic")
+```
+
+
+
+```{r}
+############## STEP (2) ##############
+##load required packages
+library("tm")
+library("arabicStemR")
+library("wordcloud2")
+library("NLP")
+library("SnowballC")
+library("wordcloud")
+library("RColorBrewer")
+library("syuzhet")
+library("ggplot2")
+```
+
+
+
+```{r}
+############ STEP (3) ###########
+# read text with UTF-8 encoding
+# to load the data into a corpus.
+# Read the text file from local machine, choose file interactively
+#arabic_text <- readLines(file.choose())
+arabic_text<-readLines("arabic.txt", encoding="UTF-8")
+# have a look !
+arabic_text 
+arabic_text = arabic_text[arabic_text!=""]
+arabic_text
+```
+
+
+
+```{r}
+######### STEP (4) #########
+## start cleaning
+arabic_text<-removePunctuation(arabic_text)
+arabic_text<-removeNumbers(arabic_text)
+arabic_text<-removeNewlineChars(arabic_text)
+arabic_text<-stripWhitespace(arabic_text)
+# Have a look!
+arabic_text
+```
+
+
+```{r}
+######### STEP (5) : PART (A)#########
+#transform the text into data frame
+#contains 2 columns (doc_id, Arabic_text)
+##1ST CHANGING STRUCTURE DATA TYPE (from text to dataframe)
+##2ND VIEW THE DATA 
+myartxt = data.frame(arabic_text, stringsAsFactors = F)
+View(myartxt)
+
+######### STEP (5) : PART (B)#########
+#transform arabic text into french-arabic(par substitution)
+#contains 3 columns (doc_id, text, Arabic_text)
+##1ST WE ADD A NEW COLUMN
+##2ND WE REPLACE ARABIC BY FRENCH-ARABIC(using "transliterate" function)
+##3RD VIEW THE DATA
+myartxt$doc_id = c(1:nrow(myartxt))
+myartxt$text = myartxt$arabic_text
+myartxt = myartxt[,c(2,3,1)]
+myartxt$text = transliterate(myartxt$text)
+View(myartxt)
+
+```
+
+
+```{r}
+############ STEP (6): PART (A)########## 
+# create Arabic text corpus
+str(myartxt)
+arabic_corpus <- Corpus(DataframeSource(myartxt) )
+
+
+############ STEP (6): PART (B)########## 
+# verify that Arabic words still the same after doing corpus
+myextract<-data.frame(text = sapply(arabic_corpus, as.character), stringsAsFactors = FALSE)
+myextract$text 
+
+```
+
+
+
+```{r}
+############ STEP (7) : PART(A) ############
+#transform our text into a matrix 
+# Build a term-document matrix
+arabic_tdm <- TermDocumentMatrix(arabic_corpus)
+# visualize matrix(we can see frequency of each term in each row)
+arabic_m <- as.matrix(arabic_tdm)
+View(arabic_m )
+
+############ STEP (7) : PART(B) ############
+#to see dimension of the matrix(nbr of rows & columns)
+#to see how many words are repeated one time --> =0 
+#to see how many words are repeated more than one time --> !=0
+dim(arabic_m)
+sum((arabic_m==0))
+sum((arabic_m!=0))
+
+
+############ STEP (7) : PART(C) ############
+## get word frequencies , sum rows(results represented by rows)
+arabic_v <- sort(rowSums(arabic_m),decreasing=TRUE)
+arabic_v
+## get word frequencies , sum columns(results represented by columns)
+arabic_d <- data.frame(word = names(arabic_v),freq=arabic_v)
+arabic_d
+# Display the top 5 most frequent words
+head(arabic_v, 5)
+tail(arabic_v, 5)
+```
+
+
+```{r}
+############ STEP (8) : PART(A):METHOD 1: "BAR PLOT" ###########
+#Plot the most frequent words
+barplot(arabic_d[1:5,]$freq, las = 2, names.arg = arabic_d[1:5,]$word,
+        col ="lightgreen", main ="Top 5 most frequent words",
+        ylab = "Word frequencies")
+
+
+############ STEP (8) : PART(B):METHOD 2: "WORD CLOUD" ###########
+#generate word cloud
+set.seed(1234)
+wordcloud(words = arabic_d$word, freq = arabic_d$freq, min.freq = 5,
+          max.words=100, random.order=FALSE, rot.per=0.40, 
+          colors=brewer.pal(8, "Dark2"))
+
+############ STEP (8) : PART(C):METHOD 3: "GRAPH-PLOT" ###########
+#Loading required package: grid
+library(graph)
+library(Rgraphviz)
+freq.terms <- findFreqTerms(arabic_tdm, lowfreq = 5)
+plot(arabic_tdm, term = freq.terms, corThreshold = 0.1, weighting = F)
+
+
+
+############ STEP (8) : PART(D):METHOD 4: "WORD CLOUD" ###########
+#step5:visualize the most repeated
+wordcloud2(data = arabic_d)
+
+```
+
+
+```{r}
+############# STEP (9) #################
+#creating a text file (output_ar.txt) contaning all the transformed words with freq 
+#it will be saved in our folder
+#View the data
+output_ar<-cbind(arabic_v)
+head(output_ar)
+tail(output_ar)
+output_ar_df = as.data.frame(output_ar)
+output_ar_df$arabic =  row.names(output_ar_df)
+for (i in 1:nrow(output_ar_df)){output_ar_df$arabic_trans[i] =  reverse.transliterate(output_ar_df$arabic[i]) }
+View(output_ar)
+```
+
+
+```{r}
+############## STEP (10) ##################
+###### SAME RESULTS TO STEP (7) BUT HERE THE STRUCTER IS "TABLE" OR IN STEP (7) IT WAS "MATRIX" ##########
+# write output in arabic
+## Now you can write your text out and have it look as you would expect
+#using fct "write.table" in order transform the df into "table data matrix"
+
+#this is the matrix containing 0 & 1 only
+write.table(output_ar_df, "arabic_output.txt", quote = FALSE, col.names = FALSE, 
+            row.names = T, sep = "\t", fileEncoding = "UTF-8")
+# prepare tdm for writing
+#this is the matrix containing more than  0 & 1 only
+mytdm <- cbind(arabic_m, names(arabic_m))
+write.table(mytdm, "termDocMatrix.txt", quote = FALSE, col.names = FALSE, 
+            row.names = T, sep = "\t", fileEncoding = "UTF-8")
+View(mytdm)
+
+```
+
+
+```{r}
+############ STEP (11)#################
+##we can do the sentiment Analysis of the text
+##all that we need is a text (arabic text) and a sentiment sample (club_sentiment)
+####1ST: Read Sentiments
+sents<-readLines("club_sent.txt", encoding="UTF-8")
+length(sents)
+sents
+table(sents)
+###############################################
+##2ND: start transliteration part
+mydf<-data.frame(arabic_text,sents, stringsAsFactors = F)
+mydf$arabic_text_t <-transliterate(mydf$arabic_text)
+View(mydf)
+##3RD: taking a training set & testing set
+library(RTextTools)
+# Create the document term matrix
+dtMatrix <- create_matrix(mydf["arabic_text_t"])
+# Configure the training data
+str(mydf)
+mydf$sents<-factor(mydf$sents)
+container <- create_container(dtMatrix, mydf$sents, trainSize = 1:34, virgin = F)
+##4TH: train a SVM Model (supporting vector machine)
+model <- train_model(container, "SVM", kernel="linear", cost=1)
+##5TH: new data containing the word that we need to analyse 
+myterms<-c( "يتعلق","إلى" ,"درجة" ,"الحب","أحبب" ,"و","أفعل" ,"بعد "
+            ,"ن" ,"أسكن" ,"في" ,"بيت" ,"الرب")
+transliterate(myterms)
+predictionData <- list( "yt3lQ","alA","drj0","al7b","a7bb","w","af3l",
+                        "b3d","n","askn" ,"fy","byt","alrb") 
+#6TH: create a prediction document term matrix
+predMatrix <- create_matrix(predictionData, originalMatrix=dtMatrix)
+predSize = length(predictionData);
+##the following gives error if none of test data matches with training data.
+predictionContainer <- create_container(predMatrix, labels=rep(0,predSize), testSize=1:predSize, virgin=FALSE)
+##7TH:we will get the predict result of the sentiment 
+results <- classify_model(predictionContainer, model)
+results
+final_report<-cbind(results,data=unlist(predictionData), myterms)
+View(final_report)
+```
+
+
+
+
+
+
+
+
+THERE EXIST OTHER METHOD TO DO A TEXT MINING ON ARABIC TEXT
+SO IN THE EXPLAINED METHOD WE WERE:
+1ST:TRANSLATING EACH ROW 
+2ND:FORMING OUR CORPUS
+
+BUT HERE WE CAN IMMEDIATELY TRANSFORM  THE WHOLE TEXT USING "TRANSLITERATE"
+BY FOLLOWING THESE STEPS:
+```{r}
+##########step1: translate all the rabic text###################
+text<-readLines("arabic.txt", encoding="UTF-8")
+tttext<-transliterate(text)
+
+##########step2: transforming the text into df##################
+myartxt = data.frame(tttext, stringsAsFactors = F)
+myartxt$doc_id = c(1:nrow(myartxt))
+myartxt$text = myartxt$tttext
+myartxt = myartxt[,c(2,3,1)]
+
+###########step3:create the corpus without the terms that we don't want########
+tap.corpus <- Corpus(DataframeSource(myartxt))
+tap.corpus<-tm_map(tap.corpus,content_transformer(tolower))
+tap.corpus <- tm_map(tap.corpus, removeWords, c("wqd", "ama", "byn", "f7sb", 
+                                                "fhw", "،" ))
+
+############step4:transform the data into matrix to see freq of each term########
+tap.tdm <- TermDocumentMatrix(tap.corpus)
+tap.m <- as.matrix(tap.tdm)
+tap.v <- sort(rowSums(tap.m),decreasing=TRUE)
+tap.d <- data.frame(word = names(tap.v),freq=tap.v)
+
+############step5:visualize the most repeated#################
+wordcloud2(data = tap.d)
+
+```
+
+
+
